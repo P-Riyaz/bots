@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Silent Dropout Patient Detector</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+  margin:0;
+  font-family:Inter, Arial, sans-serif;
+  background:#f5f6f8;
+  color:#111;
+}
+
+/* HEADER */
+.header{
+  padding:20px 40px;
+  border-bottom:1px solid #e5e7eb;
+  background:white;
+}
+.header h1{margin:0;font-size:22px}
+.header p{margin-top:4px;color:#6b7280;font-size:14px}
+
+/* CONTAINER */
+.container{
+  max-width:1050px;
+  margin:30px auto;
+  padding:0 20px;
+}
+
+/* CARD */
+.card{
+  background:white;
+  border-radius:12px;
+  padding:20px;
+  margin-bottom:25px;
+  border:1px solid #e5e7eb;
+}
+
+/* FORM */
+.form-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:20px;
+}
+.form-group{grid-column:span 2}
+.form-group.small{grid-column:span 1}
+
+label{font-size:13px;color:#374151}
+input{
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  border:1px solid #d1d5db;
+  border-radius:8px;
+  font-size:14px;
+}
+input[readonly]{background:#f9fafb}
+
+button{
+  margin-top:20px;
+  padding:12px 18px;
+  background:#2563eb;
+  color:white;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:15px;
+}
+button:hover{opacity:.9}
+
+/* METRICS */
+.metrics{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:16px;
+}
+.metric{
+  border:1px solid #e5e7eb;
+  border-radius:10px;
+  padding:16px;
+  text-align:center;
+}
+.metric small{color:#6b7280}
+.metric h2{margin:10px 0 0}
+
+/* SCORE BAR */
+.score-bar{
+  margin-top:10px;
+  height:16px;
+  border-radius:20px;
+  background:linear-gradient(to right,
+    #22c55e 0%,
+    #84cc16 25%,
+    #facc15 50%,
+    #f97316 75%,
+    #ef4444 100%);
+  position:relative;
+}
+.indicator{
+  position:absolute;
+  top:-6px;
+  width:6px;
+  height:28px;
+  background:#111;
+  border-radius:4px;
+}
+
+/* BADGES */
+.badge{
+  padding:6px 14px;
+  border-radius:20px;
+  font-weight:bold;
+}
+.high{background:#fee2e2;color:#b91c1c}
+.medium{background:#fef3c7;color:#92400e}
+.low{background:#dcfce7;color:#166534}
+
+/* ALERT */
+.alert{
+  background:#fff7ed;
+  border-left:6px solid #f59e0b;
+  padding:16px;
+  border-radius:10px;
+}
+.alert ul{margin:8px 0 0;padding-left:18px}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <h1>🩺 Silent Dropout Patient Detector</h1>
+  <p>Detect silent dropout risk for a single patient</p>
+</div>
+
+<div class="container">
+
+<!-- INPUT -->
+<div class="card">
+  <b>Enter Patient Details</b>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Patient Name</label>
+      <input id="name" value="John Doe">
+    </div>
+
+    <div class="form-group small">
+      <label>Last Follow-Up Date</label>
+      <input id="last_date" type="date" value="2024-03-25">
+    </div>
+
+    <div class="form-group small">
+      <label>Expected Gap (days)</label>
+      <input id="expected_gap" type="number" value="30">
+    </div>
+
+    <div class="form-group small">
+      <label>Medicine Refill Delay (days)</label>
+      <input id="refill_delay" type="number" value="20">
+    </div>
+
+    <div class="form-group small">
+      <label>Days Since Last Contact</label>
+      <input id="days_since_contact" type="number" value="45">
+    </div>
+
+    <div class="form-group small">
+      <label>Days Late Follow-Up</label>
+      <input id="days_late_followup" readonly>
+    </div>
+  </div>
+
+  <button onclick="predict()">Detect Risk</button>
+</div>
+
+<!-- SUMMARY -->
+<div class="card">
+  <b>Patient: <span id="pname">John Doe</span></b>
+
+  <div class="metrics">
+    <div class="metric"><small>Days Late Follow-Up</small><h2 id="late">-</h2></div>
+    <div class="metric"><small>Medicine Refill Delay</small><h2 id="refill">-</h2></div>
+    <div class="metric"><small>Missed Lab Tests</small><h2 id="labs">-</h2></div>
+    <div class="metric"><small>Days Since Last Contact</small><h2 id="contact">-</h2></div>
+  </div>
+
+  <p style="margin-top:15px">
+    Score: <b id="score">-</b> |
+    Risk Level: <span id="risk" class="badge">-</span>
+  </p>
+
+  <div class="score-bar">
+    <div class="indicator" id="indicator"></div>
+  </div>
+</div>
+
+<!-- ACTIONS -->
+<div class="card alert">
+  <b id="alertTitle">Recommended Actions</b>
+  <ul id="actions"></ul>
+  <p style="font-size:13px;color:#6b7280;margin-top:10px">
+    This dashboard shows key data and dropout risk for a single patient.
+  </p>
+</div>
+
+</div>
+
+<script>
+function predict(){
+  const expected = +document.getElementById("expected_gap").value;
+  const since = +document.getElementById("days_since_contact").value;
+  const late = Math.max(since - expected, 0);
+
+  document.getElementById("days_late_followup").value = late;
+  document.getElementById("pname").innerText =
+    document.getElementById("name").value;
+
+  fetch("/predict",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      refill_delay:+document.getElementById("refill_delay").value,
+      missed_labs:1,
+      days_late_followup:late,
+      days_since_contact:since
+    })
+  })
+  .then(res=>res.json())
+  .then(d=>{
+    document.getElementById("late").innerText = d.days_late_followup;
+    document.getElementById("refill").innerText = d.refill_delay;
+    document.getElementById("labs").innerText = d.missed_labs;
+    document.getElementById("contact").innerText = d.days_since_contact;
+
+    const scoreEl = document.getElementById("score");
+    const riskEl = document.getElementById("risk");
+    const indicator = document.getElementById("indicator");
+    const actions = document.getElementById("actions");
+    const alertTitle = document.getElementById("alertTitle");
+
+    scoreEl.innerText = d.score;
+    riskEl.innerText = d.risk;
+    riskEl.className = "badge " + d.risk.toLowerCase();
+
+    indicator.style.left =
+      d.risk === "HIGH" ? "85%" :
+      d.risk === "MEDIUM" ? "55%" : "25%";
+
+    actions.innerHTML = "";
+
+    if(d.risk === "HIGH"){
+      alertTitle.innerText =
+        "⚠ High Dropout Risk! Immediate intervention needed.";
+      actions.innerHTML = `
+        <li>Call patient</li>
+        <li>Send reminder</li>
+        <li>Offer tele-consult</li>
+      `;
+    }
+    else if(d.risk === "MEDIUM"){
+      alertTitle.innerText = "⚠ Moderate Risk";
+      actions.innerHTML = `
+        <li>Monitor closely</li>
+        <li>Send follow-up reminder</li>
+      `;
+    }
+    else{
+      alertTitle.innerText = "✅ Low Risk";
+      actions.innerHTML = `
+        <li>Continue routine follow-ups</li>
+      `;
+    }
+  });
+}
+</script>
+
+</body>
+</html>
